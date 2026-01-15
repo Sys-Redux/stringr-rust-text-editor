@@ -1,0 +1,11 @@
+{
+  "name": "stringr",
+  "version": "0.1.0",
+  "description": "Stringr - A neo-brutalist text editor built with Rust and Dioxus",
+  "scripts": {
+    "css": "./tailwindcss-linux-x64 -i input.css -o assets/tailwind.css",
+    "css:watch": "./tailwindcss-linux-x64 -i input.css -o assets/tailwind.css --watch",
+    "css:minify": "./tailwindcss-linux-x64 -i input.css -o assets/tailwind.css --minify"
+  },
+  "devDependencies": {}
+}

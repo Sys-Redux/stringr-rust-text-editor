@@ -1,6 +1,39 @@
 [package]
-name = "worddd"
+name = "stringr"
 version = "0.1.0"
-edition = "2024"
+edition = "2021"
+description = "A neo-brutalist text editor built in Rust"
 
 [dependencies]
+# GUI Framework - Dioxus with desktop support
+# We use default features plus desktop, but avoid features that might cause conflicts
+dioxus = { version = "0.6", features = ["desktop"] }
+
+# Text Buffer - Rope data structure for efficient editing
+ropey = "1.6"
+
+# Async runtime for file I/O
+tokio = { version = "1", features = ["full"] }
+
+# Native file dialogs - use tokio runtime only (no async-std)
+rfd = { version = "0.14", default-features = false, features = ["xdg-portal", "tokio"] }
+
+# Force ashpd to use tokio only (fixes async runtime conflict)
+ashpd = { version = "0.8", default-features = false, features = ["tokio"] }
+
+# Cross-platform directory paths
+dirs = "5"
+
+# Clipboard support
+arboard = "3"
+
+# Serialization for config
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = "0.3"
+
+[dev-dependencies]
+proptest = "1"

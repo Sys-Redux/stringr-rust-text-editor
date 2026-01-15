@@ -1,3 +1,14 @@
 /target
-/.github
-copilot-instructions.md
+/.github/
+/.idea
+
+# Node.js / Tailwind
+node_modules/
+package-lock.json
+tailwindcss-linux-x64
+tailwindcss-macos-arm64
+tailwindcss-macos-x64
+tailwindcss-windows-x64.exe
+
+# Generated files
+assets/tailwind.css
