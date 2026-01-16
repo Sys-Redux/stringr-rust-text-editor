@@ -243,6 +243,27 @@
     color: var(--color-text-muted);
   }
 
+  /* Title bar */
+  .title-bar {
+      @apply flex items-center justify-between;
+      @apply h-10 px-4;
+      @apply bg-surface border-b-brutal border-border;
+      @apply select-none;
+      /* Make it draggable for window movement (Dioxus/Tauri feature) */
+      -webkit-app-region: drag;
+  }
+
+  .title-bar-controls {
+      @apply w-20;
+      /* Buttons inside should not be draggable */
+      -webkit-app-region: no-drag;
+  }
+
+  .title-bar-title {
+      @apply flex items-center justify-center;
+      @apply text-text text-sm;
+  }
+
   /* Cursor styles */
   .cursor-blink {
     display: inline-block;

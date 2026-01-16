@@ -41,6 +41,32 @@ impl Buffer {
         }
     }
 
+    /// Create a buffer from file content with associated path
+    pub fn from_file(path: PathBuf, content: String) -> Self {
+        Self {
+            rope: Rope::from_str(&content),
+            cursor: Cursor::new(),
+            dirty: false,
+            path: Some(path),
+        }
+    }
+
+    /// Load content from a file, replacing current buffer contents
+    pub fn load_content(&mut self, path: PathBuf, content: String) {
+        self.rope = Rope::from_str(&content);
+        self.path = Some(path);
+        self.cursor = Cursor::new();
+        self.dirty = false;
+    }
+
+    /// Get the filename (just the name, not full path)
+    pub fn filename(&self) -> Option<String> {
+        self.path.as_ref()
+            .and_then(|p| p.file_name())
+            .and_then(|n| n.to_str())
+            .map(|s| s.to_string())
+    }
+
     // Get current cursor line
     pub fn cursor_line(&self) -> usize {
         self.cursor.position.line
