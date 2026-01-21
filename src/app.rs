@@ -1,10 +1,11 @@
-//! Main application component and state management
+// Main application component and state management
 
 use dioxus::prelude::*;
 use crate::editor::Buffer;
-use crate::ui::StatusBar;
+use crate::shortcuts::{self, ShortcutAction};
+use crate::ui::{StatusBar, TitleBar};
 
-/// Main application component
+// Main application component
 pub fn app() -> Element {
     // Initialize with an empty buffer
     let mut buffer = use_signal(Buffer::new);
@@ -25,75 +26,81 @@ pub fn app() -> Element {
         let key = evt.key();
         let modifiers = evt.modifiers();
 
-        match key {
-            // Character input
-            Key::Character(ref c) if !modifiers.ctrl() && !modifiers.alt() => {
-                if let Some(ch) = c.chars().next() {
-                    buffer.write().insert_char(ch);
-                }
-            }
+        // First, check for keyboard shortcuts
+        let action = shortcuts::parse_shortcut(&key, &modifiers);
 
-            // Backspace
-            Key::Backspace => {
-                buffer.write().delete_backward();
-            }
-
-            // Delete
-            Key::Delete => {
-                buffer.write().delete_forward();
-            }
-
-            // Enter
-            Key::Enter => {
-                buffer.write().insert_char('\n');
-            }
-
-            // Arrow keys
-            Key::ArrowUp => buffer.write().move_up(),
-            Key::ArrowDown => buffer.write().move_down(),
-            Key::ArrowLeft => buffer.write().move_left(),
-            Key::ArrowRight => buffer.write().move_right(),
-
-            // Home/End
-            Key::Home => buffer.write().move_to_line_start(),
-            Key::End => buffer.write().move_to_line_end(),
-
-            // Tab
-            Key::Tab => {
+        match action {
+            ShortcutAction::NewFile => {
                 evt.prevent_default();
-                buffer.write().insert_char('\t');
+                let buf = buffer;
+                spawn(async move { shortcuts::handle_new_file(buf).await });
             }
-
-            _ => {}
+            ShortcutAction::OpenFile => {
+                evt.prevent_default();
+                let buf = buffer;
+                spawn(async move { shortcuts::handle_open_file(buf).await });
+            }
+            ShortcutAction::SaveFile => {
+                evt.prevent_default();
+                let buf = buffer;
+                spawn(async move { shortcuts::handle_save_file(buf).await });
+            }
+            ShortcutAction::Copy => {
+                evt.prevent_default();
+                shortcuts::handle_copy(&buffer.read());
+            }
+            ShortcutAction::Paste => {
+                evt.prevent_default();
+                shortcuts::handle_paste(&mut buffer.write());
+            }
+            ShortcutAction::Cut => {
+                evt.prevent_default();
+                shortcuts::handle_cut(&mut buffer.write());
+            }
+            ShortcutAction::Undo => {
+                evt.prevent_default();
+                // TODO: Implement undo
+                tracing::info!("Undo (not yet implemented)");
+            }
+            ShortcutAction::Redo => {
+                evt.prevent_default();
+                // TODO: Implement redo
+                tracing::info!("Redo (not yet implemented)");
+            }
+            ShortcutAction::SelectAll => {
+                evt.prevent_default();
+                // TODO: Implement select all
+                tracing::info!("Select All (not yet implemented)");
+            }
+            ShortcutAction::None => {
+                // Not a shortcut - handle as regular input
+                handle_text_input(&key, &modifiers, &mut buffer);
+            }
         }
     };
 
     // Handle focus
-    let onfocus = move |_| {
-        is_focused.set(true);
-    };
-
-    let onblur = move |_| {
-        is_focused.set(false);
-    };
+    let onfocus = move |_| is_focused.set(true);
+    let onblur = move |_| is_focused.set(false);
 
     // Get cursor position for rendering
     let cursor_line_idx = buffer.read().cursor_line();
     let cursor_col_idx = buffer.read().cursor_col();
 
     rsx! {
-        // Link to Tailwind CSS (compiled by Dioxus CLI)
         document::Link { rel: "stylesheet", href: asset!("/assets/tailwind.css") }
 
-        // Main container with neo-brutalist styling using Tailwind classes
         div {
             class: "flex flex-col h-screen bg-background text-text font-mono",
 
-            // Editor area
+            TitleBar {
+                filename: buffer.read().filename(),
+                is_dirty: buffer.read().is_dirty(),
+            }
+
             div {
                 class: "flex-1 flex flex-col m-2 border-brutal border-border overflow-hidden",
 
-                // Editable content area
                 div {
                     class: "editor-view flex-1 cursor-text whitespace-pre-wrap focus:border-primary focus:outline-none",
                     tabindex: 0,
@@ -101,32 +108,27 @@ pub fn app() -> Element {
                     onfocus,
                     onblur,
 
-                    // Show placeholder when empty
                     if is_empty() {
                         div {
                             class: "placeholder-text absolute",
                             "Start typing..."
                         }
-                        // Still show cursor even when empty
                         span {
                             class: if is_focused() { "cursor-blink" } else { "cursor-static" },
                         }
                     } else {
-                        // Render each line with cursor
                         for (line_idx, line) in buffer.read().lines().enumerate() {
                             div {
                                 key: "{line_idx}",
                                 class: "editor-line",
 
                                 if line_idx == cursor_line_idx {
-                                    // Line with cursor - split into before and after
                                     span { "{line.chars().take(cursor_col_idx).collect::<String>()}" }
                                     span {
                                         class: if is_focused() { "cursor-blink" } else { "cursor-static" },
                                     }
                                     span { "{line.chars().skip(cursor_col_idx).collect::<String>()}" }
                                 } else {
-                                    // Regular line without cursor
                                     "{line}"
                                 }
                             }
@@ -135,12 +137,39 @@ pub fn app() -> Element {
                 }
             }
 
-            // Status bar
             StatusBar {
                 line: cursor_line(),
                 column: cursor_col(),
                 total_lines: line_count(),
             }
         }
+    }
+}
+
+/// Handle regular text input (non-shortcut keys)
+fn handle_text_input(key: &Key, modifiers: &Modifiers, buffer: &mut Signal<Buffer>) {
+    match key {
+        // Character input (only when Ctrl/Alt not pressed)
+        Key::Character(ref c) if !modifiers.ctrl() && !modifiers.alt() => {
+            if let Some(ch) = c.chars().next() {
+                buffer.write().insert_char(ch);
+            }
+        }
+
+        Key::Backspace => buffer.write().delete_backward(),
+        Key::Delete => buffer.write().delete_forward(),
+        Key::Enter => buffer.write().insert_char('\n'),
+
+        Key::ArrowUp => buffer.write().move_up(),
+        Key::ArrowDown => buffer.write().move_down(),
+        Key::ArrowLeft => buffer.write().move_left(),
+        Key::ArrowRight => buffer.write().move_right(),
+
+        Key::Home => buffer.write().move_to_line_start(),
+        Key::End => buffer.write().move_to_line_end(),
+
+        Key::Tab => buffer.write().insert_char('\t'),
+
+        _ => {}
     }
 }

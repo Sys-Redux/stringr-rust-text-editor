@@ -10,6 +10,7 @@ mod editor;
 mod document;
 mod file;
 mod ui;
+mod shortcuts;
 
 fn main() {
     // Init logging

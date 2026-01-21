@@ -15,7 +15,8 @@ pub fn TitleBar(
     let display_name = filename.unwrap_or_else(|| "Untitled".to_string());
 
     // Dirty indicator - yellow dot for unsaved changes
-    let dirty_indicator = if is_dirty { " •" } else { "" };
+    // Note: Using conditional rendering in RSX instead of this variable
+    let _dirty_indicator = if is_dirty { " •" } else { "" };
 
     rsx! {
         div {
