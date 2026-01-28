@@ -1,5 +1,6 @@
 // Editor module - text buffer & cursor management
 mod buffer;
-mod cursor;
+pub mod cursor;
 
 pub use buffer::Buffer;
+pub use cursor::{Cursor, Position};

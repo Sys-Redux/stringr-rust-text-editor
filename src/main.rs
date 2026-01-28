@@ -13,11 +13,21 @@ mod ui;
 mod shortcuts;
 
 fn main() {
+    // Force X11 backend on Linux for reliable window event handling
+    // (Wayland has timing issues with wry/tao close events)
+    #[cfg(target_os = "linux")]
+    {
+        if std::env::var("GDK_BACKEND").is_err() {
+            std::env::set_var("GDK_BACKEND", "x11");
+        }
+    }
+
     // Init logging
     tracing_subscriber::fmt::init();
     tracing::info!("Starting Stringr...");
 
     // Launch Dioxus desktop app with window configuration
+    // We disable native decorations to use custom themed window chrome
     dioxus::LaunchBuilder::new()
         .with_cfg(
             dioxus::desktop::Config::new()
@@ -25,7 +35,12 @@ fn main() {
                     dioxus::desktop::WindowBuilder::new()
                         .with_title("Stringr")
                         .with_resizable(true)
+                        .with_decorations(false) // Custom window chrome
                 )
+                // Use LastWindowExitsApp for clean exit behavior
+                .with_close_behaviour(dioxus::desktop::WindowCloseBehaviour::LastWindowExitsApp)
+                // Set a themed background color to prevent flash
+                .with_background_color((0x14, 0x14, 0x19, 0xFF))
         )
         .launch(app::app);
 }
