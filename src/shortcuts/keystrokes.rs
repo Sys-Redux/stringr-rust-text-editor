@@ -161,23 +161,30 @@ pub async fn handle_save_file(mut buffer: Signal<Buffer>) {
 
 // Handle copy action using arboard clipboard
 pub fn handle_copy(buffer: &Buffer) {
-    // TODO: Get selected text (once selection is implemented)
-    // For now, we'll copy the entire line as a placeholder
-    let line_idx = buffer.cursor_line();
-    let lines: Vec<String> = buffer.lines().collect();
+    // Get selected text, or fall back to current line
+    let text_to_copy = if let Some(selected) = buffer.selected_text() {
+        selected
+    } else {
+        // No selection - copy current line
+        let line_idx = buffer.cursor_line();
+        let lines: Vec<String> = buffer.lines().collect();
+        lines.get(line_idx).cloned().unwrap_or_default()
+    };
 
-    if let Some(line) = lines.get(line_idx) {
-        match arboard::Clipboard::new() {
-            Ok(mut clipboard) => {
-                if let Err(e) = clipboard.set_text(line) {
-                    tracing::error!("Failed to copy to clipboard: {}", e);
-                } else {
-                    tracing::info!("Copied line to clipboard");
-                }
+    if text_to_copy.is_empty() {
+        return;
+    }
+
+    match arboard::Clipboard::new() {
+        Ok(mut clipboard) => {
+            if let Err(e) = clipboard.set_text(&text_to_copy) {
+                tracing::error!("Failed to copy to clipboard: {}", e);
+            } else {
+                tracing::info!("Copied {} characters to clipboard", text_to_copy.len());
             }
-            Err(e) => {
-                tracing::error!("Failed to access clipboard: {}", e);
-            }
+        }
+        Err(e) => {
+            tracing::error!("Failed to access clipboard: {}", e);
         }
     }
 }
@@ -188,7 +195,8 @@ pub fn handle_paste(buffer: &mut Buffer) {
         Ok(mut clipboard) => {
             match clipboard.get_text() {
                 Ok(text) => {
-                    buffer.insert_str(&text);
+                    // Use the selection-aware insert
+                    buffer.insert_str_replacing_selection(&text);
                     tracing::info!("Pasted {} characters", text.len());
                 }
                 Err(e) => {
@@ -204,16 +212,21 @@ pub fn handle_paste(buffer: &mut Buffer) {
 
 // Handle cut action (copy + delete)
 pub fn handle_cut(buffer: &mut Buffer) {
-    // TODO: Implement once selection is working
-    // For now, cut the entire line
-    let line_idx = buffer.cursor_line();
-    let lines: Vec<String> = buffer.lines().collect();
+    // Get text to cut (selection or current line)
+    let text_to_cut = if buffer.has_selection() {
+        buffer.selected_text()
+    } else {
+        // No selection - we'll cut the current line
+        let line_idx = buffer.cursor_line();
+        let lines: Vec<String> = buffer.lines().collect();
+        lines.get(line_idx).cloned()
+    };
 
-    if let Some(line) = lines.get(line_idx) {
+    if let Some(text) = text_to_cut {
         // Copy to clipboard first
         match arboard::Clipboard::new() {
             Ok(mut clipboard) => {
-                if let Err(e) = clipboard.set_text(line) {
+                if let Err(e) = clipboard.set_text(&text) {
                     tracing::error!("Failed to copy to clipboard: {}", e);
                     return;
                 }
@@ -224,7 +237,13 @@ pub fn handle_cut(buffer: &mut Buffer) {
             }
         }
 
-        // TODO: Delete the selected text/line
-        tracing::info!("Cut line to clipboard (delete not yet implemented)");
+        // Delete the selection
+        if buffer.has_selection() {
+            buffer.delete_selection();
+            tracing::info!("Cut {} characters", text.len());
+        } else {
+            // TODO: Delete entire line when no selection
+            tracing::info!("Cut line to clipboard (full line delete not yet implemented)");
+        }
     }
 }

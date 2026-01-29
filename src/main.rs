@@ -11,6 +11,7 @@ mod document;
 mod file;
 mod ui;
 mod shortcuts;
+mod history;
 
 fn main() {
     // Force X11 backend on Linux for reliable window event handling

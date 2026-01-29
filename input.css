@@ -224,6 +224,9 @@
     line-height: 1.6;
     padding: 1rem;
     overflow: auto;
+    /* Disable native text selection - we handle selection ourselves */
+    user-select: none;
+    -webkit-user-select: none;
   }
 
   .editor-view:focus {
