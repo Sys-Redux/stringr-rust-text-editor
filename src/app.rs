@@ -1,9 +1,12 @@
 // Main application component and state management
 
 use dioxus::prelude::*;
+use std::path::PathBuf;
 use crate::editor::Buffer;
 use crate::shortcuts::{self, ShortcutAction};
-use crate::ui::{StatusBar, TitleBar};
+use crate::ui::{StatusBar, TitleBar, FileExplorer};
+use crate::workspace::FileTree;
+use crate::file;
 
 // Constants for mouse position calculation
 const CHAR_WIDTH: f64 = 8.4;  // Approximate width of monospace char at 14px
@@ -14,6 +17,12 @@ const EDITOR_PADDING: f64 = 16.0; // 1rem padding
 pub fn app() -> Element {
     // Initialize with an empty buffer
     let mut buffer = use_signal(Buffer::new);
+
+    // File tree state for the explorer
+    let mut file_tree = use_signal(FileTree::new);
+
+    // Explorer panel visibility
+    let show_explorer = use_signal(|| true);
 
     // Track if editor is focused
     let mut is_focused = use_signal(|| false);
@@ -142,6 +151,42 @@ pub fn app() -> Element {
         buffer.write().select_word_at(line, col);
     };
 
+    // Handle opening a folder for the file explorer
+    let handle_open_folder = move |_| {
+        spawn(async move {
+            if let Some(folder) = rfd::AsyncFileDialog::new()
+                .pick_folder()
+                .await
+            {
+                let path = folder.path().to_path_buf();
+                match file::scan_directory(&path) {
+                    Ok(tree) => {
+                        file_tree.set(tree);
+                        tracing::info!("Opened folder: {}", path.display());
+                    }
+                    Err(e) => {
+                        tracing::error!("Failed to open folder: {}", e);
+                    }
+                }
+            }
+        });
+    };
+
+    // Handle file selection from explorer
+    let handle_file_open = move |path: PathBuf| {
+        spawn(async move {
+            match file::read_file(&path).await {
+                Ok(content) => {
+                    buffer.write().load_content(path.clone(), content);
+                    tracing::info!("Opened file from explorer: {}", path.display());
+                }
+                Err(e) => {
+                    tracing::error!("Failed to open file: {}", e);
+                }
+            }
+        });
+    };
+
     // Get cursor position for rendering
     let cursor_line_idx = buffer.read().cursor_line();
     let cursor_col_idx = buffer.read().cursor_col();
@@ -158,11 +203,24 @@ pub fn app() -> Element {
                 is_dirty: buffer.read().is_dirty(),
             }
 
+            // Main content area with explorer + editor
             div {
-                class: "flex-1 flex flex-col m-2 border-brutal border-border overflow-hidden",
+                class: "flex flex-1 overflow-hidden",
 
+                // File Explorer Panel
+                FileExplorer {
+                    tree: file_tree,
+                    on_file_open: handle_file_open,
+                    on_open_folder: handle_open_folder,
+                    is_visible: show_explorer(),
+                }
+
+                // Editor area
                 div {
-                    class: "editor-view flex-1 cursor-text whitespace-pre-wrap focus:border-primary focus:outline-none",
+                    class: "flex-1 flex flex-col m-2 border-brutal border-border overflow-hidden",
+
+                    div {
+                        class: "editor-view flex-1 cursor-text whitespace-pre-wrap focus:border-primary focus:outline-none",
                     tabindex: 0,
                     onkeydown,
                     onfocus,
@@ -198,6 +256,7 @@ pub fn app() -> Element {
                             }
                         }
                     }
+                }
                 }
             }
 

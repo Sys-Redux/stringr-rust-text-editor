@@ -2,4 +2,5 @@
 
 mod explorer;
 
+#[allow(unused_imports)]
 pub use explorer::{FileTree, FileNode, NodeType};

@@ -10,7 +10,7 @@ pub enum NodeType {
 }
 
 // A node in the file tree
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct FileNode {
     // File/folder name
     pub name: String,
@@ -119,7 +119,7 @@ impl FileTree {
 
     // Flatten tree into a list for UI rendering
     pub fn flatten_visible(&self) -> Vec<&FileNode> {
-        let mut nodes = Vec::new();
+        let mut result = Vec::new();
         if let Some(root) = &self.root {
             flatten_recursive(root, &mut result, true);
         }
@@ -145,7 +145,7 @@ fn flatten_recursive<'a>(node: &'a FileNode, result: &mut Vec<&'a FileNode>, inc
     if include_self {
         result.push(node);
     }
-    if node.is_directory && node.is_expanded {
+    if node.is_directory() && node.is_expanded {
         for child in &node.children {
             flatten_recursive(child, result, true);
         }
