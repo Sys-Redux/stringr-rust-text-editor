@@ -342,12 +342,12 @@
   }
 
 /* =========================================================================
- * FILE EXPLORER STYLES
+ * FILE EXPLORER STYLES - VS Code inspired
  * ========================================================================= */
 
 .file-explorer {
     width: 240px;
-    min-width: 200px;
+    min-width: 180px;
     max-width: 400px;
     background-color: var(--color-surface);
     border-right: 3px solid var(--color-border);
@@ -361,23 +361,44 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 0.75rem 1rem;
-    border-bottom: 2px solid var(--color-border-subtle);
-    background-color: var(--color-surface-elevated);
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--color-border-subtle);
+    background-color: var(--color-surface);
+    min-height: 22px;
 }
 
 .file-explorer-title {
     font-size: 11px;
-    font-weight: bold;
+    font-weight: 600;
     text-transform: uppercase;
-    letter-spacing: 0.1em;
+    letter-spacing: 0.05em;
     color: var(--color-text-secondary);
+    user-select: none;
 }
 
 .file-explorer-content {
     flex: 1;
     overflow-y: auto;
     overflow-x: hidden;
+}
+
+/* Custom scrollbar for file explorer */
+.file-explorer-content::-webkit-scrollbar {
+    width: 10px;
+}
+
+.file-explorer-content::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.file-explorer-content::-webkit-scrollbar-thumb {
+    background-color: var(--color-border);
+    border-radius: 0;
+    border: 2px solid var(--color-surface);
+}
+
+.file-explorer-content::-webkit-scrollbar-thumb:hover {
+    background-color: var(--color-border-strong);
 }
 
 .file-explorer-empty {
@@ -389,23 +410,24 @@
     text-align: center;
     gap: 1rem;
     color: var(--color-text-muted);
+    font-size: 13px;
 }
 
 .file-tree {
-    padding: 0.5rem 0;
+    padding: 4px 0;
 }
 
 .file-tree-item {
     display: flex;
     align-items: center;
-    gap: 4px;
-    padding: 4px 8px;
+    height: 22px;
+    padding-right: 12px;
     cursor: pointer;
     color: var(--color-text-secondary);
     font-size: 13px;
+    line-height: 22px;
     white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    user-select: none;
 }
 
 .file-tree-item:hover {
@@ -413,36 +435,97 @@
     color: var(--color-text);
 }
 
+.file-tree-item:active {
+    background-color: var(--color-border-subtle);
+}
+
+/* Chevron container - consistent width for alignment */
 .file-tree-chevron {
     width: 16px;
-    height: 16px;
+    height: 22px;
     display: flex;
     align-items: center;
     justify-content: center;
-    color: var(--color-text-muted);
     flex-shrink: 0;
+    color: var(--color-text-muted);
+    opacity: 0;
+    transition: opacity 0.1s ease;
 }
 
+/* Show chevron for items with children */
+.file-tree-chevron.has-children {
+    opacity: 1;
+}
+
+/* Show chevron on hover for all items */
+.file-tree-item:hover .file-tree-chevron.has-children {
+    color: var(--color-text-secondary);
+}
+
+/* Icon container - holds file/folder icons */
 .file-tree-icon {
     width: 16px;
-    height: 16px;
+    height: 22px;
     display: flex;
     align-items: center;
     justify-content: center;
     flex-shrink: 0;
+    margin-right: 6px;
 }
 
-.file-tree-icon.folder {
+/* SVG icons should fill their container properly */
+.file-tree-icon svg,
+.file-tree-chevron svg {
+    display: block;
+    width: 16px;
+    height: 16px;
+}
+
+/* Folder icons */
+.file-tree-icon.folder,
+.file-tree-icon.folder-open {
     color: var(--color-primary);
 }
 
-.file-tree-icon.file {
+/* File type specific colors */
+.file-tree-icon.file-icon-default {
     color: var(--color-text-muted);
 }
 
+.file-tree-icon.file-icon-rust {
+    color: #dea584; /* Rust orange */
+}
+
+.file-tree-icon.file-icon-config {
+    color: #6d8086; /* Gray for config files */
+}
+
+.file-tree-icon.file-icon-text {
+    color: var(--color-text-secondary);
+}
+
+.file-tree-icon.file-icon-style {
+    color: #42a5f5; /* Blue for CSS */
+}
+
+.file-tree-icon.file-icon-code {
+    color: #f7df1e; /* Yellow for JS/TS */
+}
+
+.file-tree-icon.file-icon-html {
+    color: #e44d26; /* Orange for HTML */
+}
+
+.file-tree-icon.file-icon-image {
+    color: #ab47bc; /* Purple for images */
+}
+
+/* File/folder name */
 .file-tree-name {
+    flex: 1;
     overflow: hidden;
     text-overflow: ellipsis;
+    line-height: 22px;
 }
 
 /* Small brutal button for explorer */
@@ -592,10 +675,65 @@
     user-select: none;
   }
 
+  /* Editor container - holds gutter + content side by side */
+  .editor-container {
+    display: flex;
+    flex: 1;
+    background-color: var(--color-background);
+    font-family: var(--font-mono);
+    font-size: 14px;
+    line-height: 1.6;
+    overflow: auto;
+    cursor: text;
+  }
+
+  .editor-container:focus {
+    outline: none;
+  }
+
+  /* Line number gutter */
+  .line-number-gutter {
+    display: flex;
+    flex-direction: column;
+    padding: 1rem 0;
+    padding-right: 0.75rem;
+    padding-left: 1rem;
+    background-color: var(--color-background);
+    border-right: 1px solid var(--color-border-subtle);
+    user-select: none;
+    flex-shrink: 0;
+  }
+
+  .line-number {
+    min-height: 1.6em;
+    text-align: right;
+    color: var(--color-text-muted);
+    font-size: 13px;
+    min-width: 2.5em;
+    padding-right: 0.5rem;
+  }
+
+  .line-number.active {
+    color: var(--color-text);
+  }
+
+  /* Editor content area */
+  .editor-content {
+    flex: 1;
+    padding: 1rem;
+    padding-left: 1rem;
+    white-space: pre-wrap;
+    min-width: 0;
+  }
+
   /* Editor line */
   .editor-line {
     min-height: 1.6em;
     position: relative;
+  }
+
+  .editor-line.active {
+    background-color: rgba(255, 217, 0, 0.05);
   }
 
   /* Tab bar (for future multi-document support) */

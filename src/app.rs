@@ -195,6 +195,9 @@ pub fn app() -> Element {
     rsx! {
         document::Link { rel: "stylesheet", href: asset!("/assets/tailwind.css") }
 
+        // Window resize handles (invisible hit areas at edges/corners)
+        WindowResizeHandles {}
+
         div {
             class: "flex flex-col h-screen bg-background text-text font-mono",
 
@@ -220,7 +223,7 @@ pub fn app() -> Element {
                     class: "flex-1 flex flex-col m-2 border-brutal border-border overflow-hidden",
 
                     div {
-                        class: "editor-view flex-1 cursor-text whitespace-pre-wrap focus:border-primary focus:outline-none",
+                        class: "editor-container",
                     tabindex: 0,
                     onkeydown,
                     onfocus,
@@ -231,28 +234,58 @@ pub fn app() -> Element {
                     ondoubleclick,
 
                     if is_empty() {
+                        // Line number gutter (just line 1 for empty)
                         div {
-                            class: "placeholder-text absolute",
-                            "Start typing..."
+                            class: "line-number-gutter",
+                            div {
+                                class: "line-number active",
+                                "1"
+                            }
                         }
-                        span {
-                            class: if is_focused() { "cursor-blink" } else { "cursor-static" },
+                        // Editor content
+                        div {
+                            class: "editor-content",
+                            div {
+                                class: "editor-line active",
+                                span {
+                                    class: if is_focused() { "cursor-blink" } else { "cursor-static" },
+                                }
+                                span {
+                                    class: "placeholder-text",
+                                    "Start typing..."
+                                }
+                            }
                         }
                     } else {
-                        for (line_idx, line) in buffer.read().lines().enumerate() {
-                            div {
-                                key: "{line_idx}",
-                                class: "editor-line",
+                        // Line number gutter
+                        div {
+                            class: "line-number-gutter",
+                            for (line_idx, _line) in buffer.read().lines().enumerate() {
+                                div {
+                                    key: "ln-{line_idx}",
+                                    class: if line_idx == cursor_line_idx { "line-number active" } else { "line-number" },
+                                    "{line_idx + 1}"
+                                }
+                            }
+                        }
+                        // Editor content
+                        div {
+                            class: "editor-content",
+                            for (line_idx, line) in buffer.read().lines().enumerate() {
+                                div {
+                                    key: "{line_idx}",
+                                    class: if line_idx == cursor_line_idx { "editor-line active" } else { "editor-line" },
 
-                                // Render line w/ cursor and/or selection
-                                {render_line(
-                                    line_idx,
-                                    &line,
-                                    cursor_line_idx,
-                                    cursor_col_idx,
-                                    selection,
-                                    is_focused()
-                                )}
+                                    // Render line w/ cursor and/or selection
+                                    {render_line(
+                                        line_idx,
+                                        &line,
+                                        cursor_line_idx,
+                                        cursor_col_idx,
+                                        selection,
+                                        is_focused()
+                                    )}
+                                }
                             }
                         }
                     }
@@ -381,6 +414,103 @@ fn render_line(
             span { "{before}" }
             span { class: "{cursor_class}", }
             span { "{after}" }
+        }
+    }
+}
+
+/// Resize direction for window drag-resize
+#[derive(Clone, Copy)]
+enum ResizeDirection {
+    North,
+    South,
+    East,
+    West,
+    NorthEast,
+    NorthWest,
+    SouthEast,
+    SouthWest,
+}
+
+/// Invisible resize handles at window edges and corners
+#[component]
+fn WindowResizeHandles() -> Element {
+    // Size of the resize hit area in pixels
+    const EDGE_SIZE: i32 = 5;
+    const CORNER_SIZE: i32 = 10;
+
+    // Helper to start resize drag
+    let start_resize = move |direction: ResizeDirection| {
+        move |_evt: MouseEvent| {
+            use dioxus::desktop::tao::window::ResizeDirection as TaoDirection;
+
+            let dir = match direction {
+                ResizeDirection::North => TaoDirection::North,
+                ResizeDirection::South => TaoDirection::South,
+                ResizeDirection::East => TaoDirection::East,
+                ResizeDirection::West => TaoDirection::West,
+                ResizeDirection::NorthEast => TaoDirection::NorthEast,
+                ResizeDirection::NorthWest => TaoDirection::NorthWest,
+                ResizeDirection::SouthEast => TaoDirection::SouthEast,
+                ResizeDirection::SouthWest => TaoDirection::SouthWest,
+            };
+
+            // Get the webview window and start drag resize
+            let window = dioxus::desktop::window();
+            let _ = window.drag_resize_window(dir);
+        }
+    };
+
+    rsx! {
+        // Corner handles (higher z-index, larger hit area)
+        // Top-left corner
+        div {
+            class: "resize-handle resize-nw",
+            style: "position:fixed;top:0;left:0;width:{CORNER_SIZE}px;height:{CORNER_SIZE}px;cursor:nwse-resize;z-index:9999;",
+            onmousedown: start_resize(ResizeDirection::NorthWest),
+        }
+        // Top-right corner
+        div {
+            class: "resize-handle resize-ne",
+            style: "position:fixed;top:0;right:0;width:{CORNER_SIZE}px;height:{CORNER_SIZE}px;cursor:nesw-resize;z-index:9999;",
+            onmousedown: start_resize(ResizeDirection::NorthEast),
+        }
+        // Bottom-left corner
+        div {
+            class: "resize-handle resize-sw",
+            style: "position:fixed;bottom:0;left:0;width:{CORNER_SIZE}px;height:{CORNER_SIZE}px;cursor:nesw-resize;z-index:9999;",
+            onmousedown: start_resize(ResizeDirection::SouthWest),
+        }
+        // Bottom-right corner
+        div {
+            class: "resize-handle resize-se",
+            style: "position:fixed;bottom:0;right:0;width:{CORNER_SIZE}px;height:{CORNER_SIZE}px;cursor:nwse-resize;z-index:9999;",
+            onmousedown: start_resize(ResizeDirection::SouthEast),
+        }
+
+        // Edge handles
+        // Top edge
+        div {
+            class: "resize-handle resize-n",
+            style: "position:fixed;top:0;left:{CORNER_SIZE}px;right:{CORNER_SIZE}px;height:{EDGE_SIZE}px;cursor:ns-resize;z-index:9998;",
+            onmousedown: start_resize(ResizeDirection::North),
+        }
+        // Bottom edge
+        div {
+            class: "resize-handle resize-s",
+            style: "position:fixed;bottom:0;left:{CORNER_SIZE}px;right:{CORNER_SIZE}px;height:{EDGE_SIZE}px;cursor:ns-resize;z-index:9998;",
+            onmousedown: start_resize(ResizeDirection::South),
+        }
+        // Left edge
+        div {
+            class: "resize-handle resize-w",
+            style: "position:fixed;left:0;top:{CORNER_SIZE}px;bottom:{CORNER_SIZE}px;width:{EDGE_SIZE}px;cursor:ew-resize;z-index:9998;",
+            onmousedown: start_resize(ResizeDirection::West),
+        }
+        // Right edge
+        div {
+            class: "resize-handle resize-e",
+            style: "position:fixed;right:0;top:{CORNER_SIZE}px;bottom:{CORNER_SIZE}px;width:{EDGE_SIZE}px;cursor:ew-resize;z-index:9998;",
+            onmousedown: start_resize(ResizeDirection::East),
         }
     }
 }
