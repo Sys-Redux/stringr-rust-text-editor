@@ -20,40 +20,97 @@ pub enum ShortcutAction {
     Redo,
     SelectAll,
 
+    // Search operations
+    Find,
+    FindNext,
+    FindPrevious,
+    Replace,
+    CloseSearch,
+
     // No action matched
     None,
 }
 
 // Parse keyboard event and return the corresponding shortcut action
 pub fn parse_shortcut(key: &Key, modifiers: &Modifiers) -> ShortcutAction {
-    // Only handle Ctrl shortcuts (not Alt)
-    if !modifiers.ctrl() || modifiers.alt() {
-        return ShortcutAction::None;
+    // ---------------------------------------------------------------------
+    // No-modifier shortcuts
+    // ---------------------------------------------------------------------
+
+    // Handle Escape key
+    if let Key::Escape = key {
+        return ShortcutAction::CloseSearch;
     }
 
-    match key {
-        Key::Character(ref c) => {
-            match c.to_lowercase().as_str() {
+    // Handle F3 for find next/previous
+    if let Key::F3 = key {
+        return if modifiers.shift() {
+            ShortcutAction::FindPrevious
+        } else {
+            ShortcutAction::FindNext
+        };
+    }
+
+    // ---------------------------------------------------------------------
+    // Character-based shortcuts w/ modifiers
+    // ---------------------------------------------------------------------
+    if let Key::Character(ref c) = key {
+        let ch = c.to_lowercase();
+
+        // Ctrl+Shift+Key shortcuts
+        if modifiers.ctrl() && modifiers.shift() && !modifiers.alt() {
+            return match ch.as_str() {
+                "z" => ShortcutAction::Redo,
+                // TODO: Add more Ctrl+Shift shortcuts here
+                // "s" => ShortcutAction::SaveAs,
+                // "f" => ShortcutAction::FindInFiles,
+                _ => ShortcutAction::None,
+            };
+        }
+
+        // Ctrl+Key shortcuts
+        if modifiers.ctrl() && !modifiers.alt() && !modifiers.shift() {
+            return match ch.as_str() {
+                // File operations
                 "n" => ShortcutAction::NewFile,
                 "o" => ShortcutAction::OpenFile,
                 "s" => ShortcutAction::SaveFile,
+                // Edit operations
                 "c" => ShortcutAction::Copy,
                 "v" => ShortcutAction::Paste,
                 "x" => ShortcutAction::Cut,
-                "z" => {
-                    if modifiers.shift() {
-                        ShortcutAction::Redo
-                    } else {
-                        ShortcutAction::Undo
-                    }
-                }
-                "y" => ShortcutAction::Redo,  // Alternative redo
+                "z" => ShortcutAction::Undo,
+                "y" => ShortcutAction::Redo,
                 "a" => ShortcutAction::SelectAll,
+                // Search operations
+                "f" => ShortcutAction::Find,
+                "h" => ShortcutAction::Replace,
+                "g" => ShortcutAction::FindNext,
                 _ => ShortcutAction::None,
-            }
+            };
         }
-        _ => ShortcutAction::None,
+
+        // Alt+Key shortcuts
+        if modifiers.alt() && !modifiers.ctrl() && !modifiers.shift() {
+            return match ch.as_str() {
+                // TODO: Add Alt+Key shortcuts here
+                // "f" => ShortcutAction::OpenFileMenu,
+                // "e" => ShortcutAction::OpenEditMenu,
+                // "v" => ShortcutAction::OpenViewMenu,
+                // "h" => ShortcutAction::OpenHelpMenu,
+                _ => ShortcutAction::None,
+            };
+        }
+
+        // Ctrl+Alt+Key shortcuts
+        if modifiers.ctrl() && modifiers.alt() {
+            return match ch.as_str() {
+                // TODO: Add Ctrl+Alt+Key shortcuts here
+                _ => ShortcutAction::None,
+            };
+        }
     }
+    ShortcutAction::None
 }
 
 // Handle New File action

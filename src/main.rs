@@ -12,6 +12,7 @@ mod file;
 mod ui;
 mod shortcuts;
 mod history;
+mod search;
 mod workspace;
 
 fn main() {
