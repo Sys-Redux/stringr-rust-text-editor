@@ -4,7 +4,7 @@ use dioxus::prelude::*;
 use std::path::PathBuf;
 use crate::editor::Buffer;
 use crate::shortcuts::{self, ShortcutAction};
-use crate::ui::{StatusBar, TitleBar, FileExplorer};
+use crate::ui::{StatusBar, TitleBar, FileExplorer, ActivityBar, ActivityPanel};
 use crate::workspace::FileTree;
 use crate::file;
 
@@ -21,8 +21,11 @@ pub fn app() -> Element {
     // File tree state for the explorer
     let mut file_tree = use_signal(FileTree::new);
 
-    // Explorer panel visibility
-    let show_explorer = use_signal(|| true);
+    // Activity bar panel state - which sidebar panel is active (None = collapsed)
+    let mut active_panel = use_signal(|| Some(ActivityPanel::Files));
+
+    // Explorer panel visibility - derived from active panel
+    let show_explorer = active_panel().map_or(false, |p| p == ActivityPanel::Files);
 
     // Track if editor is focused
     let mut is_focused = use_signal(|| false);
@@ -187,6 +190,16 @@ pub fn app() -> Element {
         });
     };
 
+    // Handle activity bar panel selection (toggle behavior)
+    let handle_panel_select = move |panel: ActivityPanel| {
+        // If clicking the already-active panel, collapse sidebar; otherwise switch to it
+        if active_panel() == Some(panel) {
+            active_panel.set(None);
+        } else {
+            active_panel.set(Some(panel));
+        }
+    };
+
     // Get cursor position for rendering
     let cursor_line_idx = buffer.read().cursor_line();
     let cursor_col_idx = buffer.read().cursor_col();
@@ -206,16 +219,22 @@ pub fn app() -> Element {
                 is_dirty: buffer.read().is_dirty(),
             }
 
-            // Main content area with explorer + editor
+            // Main content area with activity bar + explorer + editor
             div {
                 class: "flex flex-1 overflow-hidden",
+
+                // Activity Bar (leftmost, VS Code style)
+                ActivityBar {
+                    active_panel: active_panel,
+                    on_panel_select: handle_panel_select,
+                }
 
                 // File Explorer Panel
                 FileExplorer {
                     tree: file_tree,
                     on_file_open: handle_file_open,
                     on_open_folder: handle_open_folder,
-                    is_visible: show_explorer(),
+                    is_visible: show_explorer,
                 }
 
                 // Editor area
