@@ -38,6 +38,8 @@ pub struct SearchState {
     pub case_sensitive: bool,
     pub replace_text: String,
     pub replace_mode: bool,
+    /// Flag to trigger focus on the search input (set to true, component will reset to false)
+    pub should_focus: bool,
 }
 
 impl Default for SearchState {
@@ -48,6 +50,7 @@ impl Default for SearchState {
             matches: Vec::new(),
             current_match_idx: None,
             case_sensitive: false,
+            should_focus: false,
             replace_text: String::new(),
             replace_mode: false,
         }
@@ -59,15 +62,17 @@ impl SearchState {
         Self::default()
     }
 
-    // Open search bar
+    // Open/focus search bar
     pub fn open(&mut self) {
         self.is_open = true;
+        self.should_focus = true;
     }
 
     // Open search bar in replace mode
     pub fn open_replace(&mut self) {
         self.is_open = true;
         self.replace_mode = true;
+        self.should_focus = true;
     }
 
     // Close search bar & clear state

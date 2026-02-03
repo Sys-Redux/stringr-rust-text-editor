@@ -4,8 +4,9 @@ use dioxus::prelude::*;
 use std::path::PathBuf;
 use crate::editor::Buffer;
 use crate::shortcuts::{self, ShortcutAction};
-use crate::ui::{StatusBar, TitleBar, FileExplorer, ActivityBar, ActivityPanel};
+use crate::ui::{StatusBar, TitleBar, FileExplorer, ActivityBar, ActivityPanel, SearchPanel};
 use crate::workspace::FileTree;
+use crate::search::SearchState;
 use crate::file;
 
 // Constants for mouse position calculation
@@ -26,6 +27,7 @@ pub fn app() -> Element {
 
     // Explorer panel visibility - derived from active panel
     let show_explorer = active_panel().map_or(false, |p| p == ActivityPanel::Files);
+    let show_search_panel = active_panel().map_or(false, |p| p == ActivityPanel::Search);
 
     // Track if editor is focused
     let mut is_focused = use_signal(|| false);
@@ -40,6 +42,9 @@ pub fn app() -> Element {
 
     // Check if buffer is empty for placeholder
     let is_empty = use_memo(move || buffer.read().is_empty());
+
+    // Search state
+    let mut search_state = use_signal(SearchState::new);
 
     // Handle keyboard input
     let onkeydown = move |evt: Event<KeyboardData>| {
@@ -97,6 +102,30 @@ pub fn app() -> Element {
                 evt.prevent_default();
                 buffer.write().select_all();
                 tracing::info!("Selected all text");
+            }
+            ShortcutAction::Find => {
+                evt.prevent_default();
+                search_state.write().open();
+                tracing::info!("Opened search");
+            }
+            ShortcutAction::Replace => {
+                evt.prevent_default();
+                search_state.write().open_replace();
+                tracing::info!("Opened search & replace");
+            }
+            ShortcutAction::FindNext => {
+                evt.prevent_default();
+                search_state.write().find_next();
+            }
+            ShortcutAction::FindPrevious => {
+                evt.prevent_default();
+                search_state.write().find_previous();
+            }
+            ShortcutAction::CloseSearch => {
+                evt.prevent_default();
+                if search_state.read().is_open {
+                    search_state.write().close();
+                }
             }
 
             ShortcutAction::None => {
@@ -214,9 +243,12 @@ pub fn app() -> Element {
         div {
             class: "flex flex-col h-screen bg-background text-text font-mono",
 
+            // Title bar with integrated search
             TitleBar {
                 filename: buffer.read().filename(),
                 is_dirty: buffer.read().is_dirty(),
+                search_state: search_state,
+                buffer: buffer,
             }
 
             // Main content area with activity bar + explorer + editor
@@ -235,6 +267,13 @@ pub fn app() -> Element {
                     on_file_open: handle_file_open,
                     on_open_folder: handle_open_folder,
                     is_visible: show_explorer,
+                }
+
+                // Search Panel
+                SearchPanel {
+                    is_visible: show_search_panel,
+                    search_state: search_state,
+                    buffer: buffer,
                 }
 
                 // Editor area
@@ -295,14 +334,15 @@ pub fn app() -> Element {
                                     key: "{line_idx}",
                                     class: if line_idx == cursor_line_idx { "editor-line active" } else { "editor-line" },
 
-                                    // Render line w/ cursor and/or selection
+                                    // Render line w/ cursor, selection, and search highlights
                                     {render_line(
                                         line_idx,
                                         &line,
                                         cursor_line_idx,
                                         cursor_col_idx,
                                         selection,
-                                        is_focused()
+                                        is_focused(),
+                                        search_state.read().matches_on_line(line_idx),
                                     )}
                                 }
                             }
@@ -380,59 +420,169 @@ fn render_line(
     cursor_col: usize,
     selection: Option<(usize, usize, usize, usize)>,
     is_focused: bool,
+    search_matches: Vec<(usize, usize, bool)>, // (start_col, end_col, is_current_match)
 ) -> Element {
     let cursor_class = if is_focused { "cursor-blink" } else { "cursor-static" };
+    let line_chars: Vec<char> = line.chars().collect();
+    let line_len = line_chars.len();
 
     // Check if this line has selection
     let (sel_start_line, sel_start_col, sel_end_line, sel_end_col) =
         selection.unwrap_or((usize::MAX, 0, 0, 0));
 
     let has_selection_on_line = selection.is_some()
-    && line_idx >= sel_start_line
-    && line_idx <= sel_end_line;
+        && line_idx >= sel_start_line
+        && line_idx <= sel_end_line;
 
-    if !has_selection_on_line && line_idx != cursor_line {
-        // Simple case: no selection or cursor on this line
+    let has_cursor = line_idx == cursor_line;
+    let has_search_matches = !search_matches.is_empty();
+
+    // Fast path: nothing special on this line
+    if !has_selection_on_line && !has_cursor && !has_search_matches {
         return rsx! { "{line}" };
     }
 
-    if has_selection_on_line {
-        // Calculate selection bounds
-        let line_start = if line_idx ==
-            sel_start_line { sel_start_col } else { 0 };
+    // Build spans for this line by collecting "regions" with different styles
+    // Each char position can have: normal, selected, search-match, current-match, cursor
 
-        let line_end = if line_idx ==
-            sel_end_line { sel_end_col } else { line.chars().count() };
+    // For each character, determine its styling
+    #[derive(Clone, Copy, PartialEq)]
+    enum CharStyle {
+        Normal,
+        Selected,
+        SearchMatch,
+        CurrentMatch,
+    }
 
-        let before: String = line.chars().take(line_start).collect();
-        let selected: String = line.chars().skip(line_start).take(line_end - line_start).collect();
-        let after: String = line.chars().skip(line_end).collect();
+    let mut char_styles: Vec<CharStyle> = vec![CharStyle::Normal; line_len];
 
-        // Also render cursor if on this line
-        if line_idx == cursor_line {
-            // Within range
-            rsx! {
-                span { "{before}" }
-                span { class: "bg-primary/30 text/text", "{selected}" }
-                span { class: "{cursor_class}", }
-                span { "{after}" }
-            }
-        } else {
-            rsx! {
-                span { "{before}" }
-                span { class: "bg-primary/30 text/text", "{selected}" }
-                span { "{after}" }
-            }
+    // Apply search match styles (lowest priority)
+    for (start, end, is_current) in &search_matches {
+        for i in *start..*end.min(&line_len) {
+            char_styles[i] = if *is_current {
+                CharStyle::CurrentMatch
+            } else {
+                CharStyle::SearchMatch
+            };
         }
-    } else {
-        // Only cursor, no selection
-        let before: String = line.chars().take(cursor_col).collect();
-        let after: String = line.chars().skip(cursor_col).collect();
+    }
 
-        rsx! {
-            span { "{before}" }
-            span { class: "{cursor_class}", }
-            span { "{after}" }
+    // Apply selection styles (higher priority - overrides search)
+    if has_selection_on_line {
+        let sel_start = if line_idx == sel_start_line { sel_start_col } else { 0 };
+        let sel_end = if line_idx == sel_end_line { sel_end_col } else { line_len };
+        for i in sel_start..sel_end.min(line_len) {
+            char_styles[i] = CharStyle::Selected;
+        }
+    }
+
+    // Group consecutive characters with same style into spans
+    let mut spans: Vec<(CharStyle, String)> = vec![];
+    let mut current_style = if line_len > 0 { char_styles[0] } else { CharStyle::Normal };
+    let mut current_text = String::new();
+
+    for (i, ch) in line_chars.iter().enumerate() {
+        if char_styles[i] != current_style {
+            if !current_text.is_empty() {
+                spans.push((current_style, current_text));
+            }
+            current_style = char_styles[i];
+            current_text = String::new();
+        }
+        current_text.push(*ch);
+    }
+    if !current_text.is_empty() {
+        spans.push((current_style, current_text));
+    }
+
+    // Now render with cursor insertion if needed
+    if has_cursor {
+        // Find where to insert cursor
+        let mut char_pos = 0;
+        let mut result_spans: Vec<Element> = vec![];
+
+        for (style, text) in spans {
+            let span_len = text.chars().count();
+            let span_end = char_pos + span_len;
+
+            if cursor_col >= char_pos && cursor_col < span_end {
+                // Cursor is within this span - split it
+                let offset = cursor_col - char_pos;
+                let before: String = text.chars().take(offset).collect();
+                let after: String = text.chars().skip(offset).collect();
+
+                let class = match style {
+                    CharStyle::Normal => "",
+                    CharStyle::Selected => "selection-highlight",
+                    CharStyle::SearchMatch => "search-highlight",
+                    CharStyle::CurrentMatch => "search-highlight-current",
+                };
+
+                if !before.is_empty() {
+                    if class.is_empty() {
+                        result_spans.push(rsx! { span { "{before}" } });
+                    } else {
+                        result_spans.push(rsx! { span { class: "{class}", "{before}" } });
+                    }
+                }
+
+                result_spans.push(rsx! { span { class: "{cursor_class}" } });
+
+                if !after.is_empty() {
+                    if class.is_empty() {
+                        result_spans.push(rsx! { span { "{after}" } });
+                    } else {
+                        result_spans.push(rsx! { span { class: "{class}", "{after}" } });
+                    }
+                }
+            } else {
+                // Cursor not in this span
+                let class = match style {
+                    CharStyle::Normal => "",
+                    CharStyle::Selected => "selection-highlight",
+                    CharStyle::SearchMatch => "search-highlight",
+                    CharStyle::CurrentMatch => "search-highlight-current",
+                };
+
+                if class.is_empty() {
+                    result_spans.push(rsx! { span { "{text}" } });
+                } else {
+                    result_spans.push(rsx! { span { class: "{class}", "{text}" } });
+                }
+            }
+
+            char_pos = span_end;
+        }
+
+        // If cursor is at end of line
+        if cursor_col >= line_len {
+            result_spans.push(rsx! { span { class: "{cursor_class}" } });
+        }
+
+        return rsx! {
+            for (idx, span) in result_spans.into_iter().enumerate() {
+                Fragment { key: "{idx}", {span} }
+            }
+        };
+    }
+
+    // No cursor, just render styled spans
+    rsx! {
+        for (idx, (style, text)) in spans.into_iter().enumerate() {
+            match style {
+                CharStyle::Normal => rsx! {
+                    span { key: "{idx}", "{text}" }
+                },
+                CharStyle::Selected => rsx! {
+                    span { key: "{idx}", class: "selection-highlight", "{text}" }
+                },
+                CharStyle::SearchMatch => rsx! {
+                    span { key: "{idx}", class: "search-highlight", "{text}" }
+                },
+                CharStyle::CurrentMatch => rsx! {
+                    span { key: "{idx}", class: "search-highlight-current", "{text}" }
+                },
+            }
         }
     }
 }

@@ -2,24 +2,21 @@
 // VS Code-style sidebar with extension icons
 
 use dioxus::prelude::*;
+use dioxus_free_icons::Icon;
+use dioxus_free_icons::icons::ld_icons::{LdFiles, LdSearch};
 
 /// The different panels/views that can be shown in the sidebar
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ActivityPanel {
     /// File explorer view
     Files,
+    /// Search panel
+    Search,
     // Future panels can be added here:
-    // Search,
     // SourceControl,
     // Extensions,
     // etc.
 }
-
-// SVG icons for activity bar
-const ICON_FILES: &str = r#"<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-    <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/>
-    <polyline points="13 2 13 9 20 9"/>
-</svg>"#;
 
 /// Activity bar component - vertical icon bar on the far left
 #[component]
@@ -29,12 +26,17 @@ pub fn ActivityBar(
     /// Callback when a panel icon is clicked
     on_panel_select: EventHandler<ActivityPanel>,
 ) -> Element {
-    // Check if files panel is active
+    // Check if each panel is active
     let files_active = active_panel().map_or(false, |p| p == ActivityPanel::Files);
+    let search_active = active_panel().map_or(false, |p| p == ActivityPanel::Search);
 
-    // Handle files icon click
+    // Handle icon clicks
     let handle_files_click = move |_| {
         on_panel_select.call(ActivityPanel::Files);
+    };
+
+    let handle_search_click = move |_| {
+        on_panel_select.call(ActivityPanel::Search);
     };
 
     rsx! {
@@ -53,7 +55,7 @@ pub fn ActivityBar(
 
                     div {
                         class: "activity-bar-icon",
-                        dangerous_inner_html: ICON_FILES,
+                        Icon { icon: LdFiles, width: 24, height: 24 }
                     }
 
                     // Active indicator bar
@@ -62,8 +64,24 @@ pub fn ActivityBar(
                     }
                 }
 
+                // Search icon
+                button {
+                    class: if search_active { "activity-bar-item active" } else { "activity-bar-item" },
+                    title: "Search",
+                    onclick: handle_search_click,
+
+                    div {
+                        class: "activity-bar-icon",
+                        Icon { icon: LdSearch, width: 24, height: 24 }
+                    }
+
+                    // Active indicator bar
+                    if search_active {
+                        div { class: "activity-bar-indicator" }
+                    }
+                }
+
                 // Future icons will go here:
-                // - Search
                 // - Source Control
                 // - Extensions
                 // - etc.

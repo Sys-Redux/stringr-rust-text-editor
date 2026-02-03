@@ -1,22 +1,28 @@
 // File Explorer UI component
 
 use dioxus::prelude::*;
+use dioxus_free_icons::Icon;
+use dioxus_free_icons::icons::ld_icons::{
+    LdFolder, LdFolderOpen, LdFile, LdFileText, LdFileCode, LdFileJson,
+    LdImage, LdChevronRight, LdChevronDown, LdSettings, LdPalette, LdGlobe
+};
 use std::path::PathBuf;
 use crate::workspace::{FileTree, FileNode};
 
-// SVG icons for the file explorer - VS Code style
-const ICON_FOLDER_CLOSED: &str = r#"<svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M14.5 3H7.71l-.85-.85A.5.5 0 0 0 6.5 2h-5a.5.5 0 0 0-.5.5v11a.5.5 0 0 0 .5.5h13a.5.5 0 0 0 .5-.5v-10a.5.5 0 0 0-.5-.5zm-.5 10H2V5h12v8z"/></svg>"#;
-const ICON_FOLDER_OPEN: &str = r#"<svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M1.5 2A.5.5 0 0 0 1 2.5v11a.5.5 0 0 0 .5.5h13a.5.5 0 0 0 .5-.5V5a.5.5 0 0 0-.5-.5H7.707l-.853-.854A.5.5 0 0 0 6.5 3.5H1.5zM2 6v7h12V6H2z"/></svg>"#;
-const ICON_FILE: &str = r#"<svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M10.5 1H3.5C2.67 1 2 1.67 2 2.5v11c0 .83.67 1.5 1.5 1.5h9c.83 0 1.5-.67 1.5-1.5V4.5L10.5 1zm3 12.5c0 .28-.22.5-.5.5h-9a.5.5 0 0 1-.5-.5v-11c0-.28.22-.5.5-.5H10v2.5c0 .83.67 1.5 1.5 1.5H14v7.5h-.5z"/></svg>"#;
-const ICON_FILE_RUST: &str = r#"<svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zm0 1.17a.58.58 0 1 1 0 1.16.58.58 0 0 1 0-1.16zm2.93.76l.4.4a.29.29 0 0 1-.41.41l-.4-.4a.29.29 0 0 1 .41-.41zM5.07 2.93a.29.29 0 0 1 .41.41l-.4.4a.29.29 0 0 1-.41-.41l.4-.4zM8 5.5a2.5 2.5 0 0 1 2.45 2H9.27a1.32 1.32 0 0 0-2.54 0H5.55A2.5 2.5 0 0 1 8 5.5zm4.83.67a.58.58 0 1 1 0 1.16.58.58 0 0 1 0-1.16zm-9.66 0a.58.58 0 1 1 0 1.16.58.58 0 0 1 0-1.16zM5.55 8.5h4.9a2.5 2.5 0 0 1-4.9 0zm-2.48.67a.58.58 0 1 1 0 1.16.58.58 0 0 1 0-1.16zm9.66 0a.58.58 0 1 1 0 1.16.58.58 0 0 1 0-1.16zm-7.65 1.9l.4.4a.29.29 0 0 1-.41.41l-.4-.4a.29.29 0 1 1 .41-.41zm7.84 0a.29.29 0 0 1 0 .41l-.4.4a.29.29 0 0 1-.41-.41l.4-.4a.29.29 0 0 1 .41 0zM8 12.67a.58.58 0 1 1 0 1.16.58.58 0 0 1 0-1.16z"/></svg>"#;
-const ICON_FILE_CONFIG: &str = r#"<svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M9.1 4.4L8.6 2H7.4l-.5 2.4-.7.3-2-1.3-.9.8 1.3 2-.2.7-2.4.5v1.2l2.4.5.3.7-1.3 2 .8.8 2-1.3.7.3.5 2.4h1.2l.5-2.4.7-.3 2 1.3.8-.8-1.3-2 .3-.7 2.4-.5V6.6l-2.4-.5-.3-.7 1.3-2-.8-.8-2 1.3-.7-.3zM8 10a2 2 0 1 1 0-4 2 2 0 0 1 0 4z"/></svg>"#;
-const ICON_FILE_TEXT: &str = r#"<svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M4 1h8a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1zm1 3v1h6V4H5zm0 2v1h6V6H5zm0 2v1h4V8H5z"/></svg>"#;
-const ICON_FILE_STYLE: &str = r#"<svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zM2.5 8a5.5 5.5 0 0 1 9.27-4.02L4.02 11.77A5.48 5.48 0 0 1 2.5 8zm3.25 5.52a5.5 5.5 0 0 0 7.77-7.77L5.75 13.52z"/></svg>"#;
-const ICON_FILE_CODE: &str = r#"<svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M10.478 1.647a.5.5 0 1 0-.956-.294l-4 13a.5.5 0 0 0 .956.294l4-13zM4.854 4.146a.5.5 0 0 1 0 .708L1.707 8l3.147 3.146a.5.5 0 0 1-.708.708l-3.5-3.5a.5.5 0 0 1 0-.708l3.5-3.5a.5.5 0 0 1 .708 0zm6.292 0a.5.5 0 0 0 0 .708L14.293 8l-3.147 3.146a.5.5 0 0 0 .708.708l3.5-3.5a.5.5 0 0 0 0-.708l-3.5-3.5a.5.5 0 0 0-.708 0z"/></svg>"#;
-const ICON_FILE_HTML: &str = r#"<svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M2 1h12l-1.1 12L8 15l-4.9-2L2 1zm2.15 2l.8 9L8 13.28 11.05 12l.8-9H4.15zM6.5 6H10l-.15 2H7l.1 1.5h2.65l-.2 2.2L8 12.1l-1.55-.4-.1-1.2h1l.05.6.6.15.6-.15.1-1.1H6.4L6.15 6H6.5z"/></svg>"#;
-const ICON_FILE_IMAGE: &str = r#"<svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M2.5 2A1.5 1.5 0 0 0 1 3.5v9A1.5 1.5 0 0 0 2.5 14h11a1.5 1.5 0 0 0 1.5-1.5v-9A1.5 1.5 0 0 0 13.5 2h-11zM2 3.5a.5.5 0 0 1 .5-.5h11a.5.5 0 0 1 .5.5v5.864l-2.682-2.682a.5.5 0 0 0-.707 0L8 9.293 6.354 7.646a.5.5 0 0 0-.708 0L2 11.293V3.5zM5 5a1 1 0 1 1-2 0 1 1 0 0 1 2 0z"/></svg>"#;
-const ICON_CHEVRON_RIGHT: &str = r#"<svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M6 4l4 4-4 4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>"#;
-const ICON_CHEVRON_DOWN: &str = r#"<svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>"#;
+/// Enum to represent different file icon types for Lucide
+#[derive(Clone, Copy, PartialEq)]
+enum FileIconType {
+    Folder,
+    FolderOpen,
+    File,
+    FileText,
+    FileCode,
+    FileConfig,
+    FileStyle,
+    FileHtml,
+    FileImage,
+    FileRust,
+}
 
 // Props for the FileExplorer component
 #[component]
@@ -114,18 +120,18 @@ fn FileTreeView(
     }
 }
 
-// Get the appropriate file icon based on extension
-fn get_file_icon(filename: &str) -> &'static str {
+// Get the appropriate file icon type based on extension
+fn get_file_icon_type(filename: &str) -> FileIconType {
     let extension = filename.rsplit('.').next().unwrap_or("").to_lowercase();
     match extension.as_str() {
-        "rs" => ICON_FILE_RUST,
-        "toml" | "json" | "yaml" | "yml" | "xml" => ICON_FILE_CONFIG,
-        "md" | "txt" | "doc" | "docx" => ICON_FILE_TEXT,
-        "css" | "scss" | "sass" | "less" => ICON_FILE_STYLE,
-        "js" | "ts" | "jsx" | "tsx" => ICON_FILE_CODE,
-        "html" | "htm" => ICON_FILE_HTML,
-        "png" | "jpg" | "jpeg" | "gif" | "svg" | "ico" | "webp" => ICON_FILE_IMAGE,
-        _ => ICON_FILE,
+        "rs" => FileIconType::FileRust,
+        "toml" | "json" | "yaml" | "yml" | "xml" => FileIconType::FileConfig,
+        "md" | "txt" | "doc" | "docx" => FileIconType::FileText,
+        "css" | "scss" | "sass" | "less" => FileIconType::FileStyle,
+        "js" | "ts" | "jsx" | "tsx" => FileIconType::FileCode,
+        "html" | "htm" => FileIconType::FileHtml,
+        "png" | "jpg" | "jpeg" | "gif" | "svg" | "ico" | "webp" => FileIconType::FileImage,
+        _ => FileIconType::File,
     }
 }
 
@@ -141,6 +147,28 @@ fn get_file_icon_class(filename: &str) -> &'static str {
         "html" | "htm" => "file-icon-html",
         "png" | "jpg" | "jpeg" | "gif" | "svg" | "ico" | "webp" => "file-icon-image",
         _ => "file-icon-default",
+    }
+}
+
+/// Render a file icon based on the icon type
+#[component]
+fn FileIcon(icon_type: FileIconType, class: String) -> Element {
+    rsx! {
+        div {
+            class: "{class}",
+            match icon_type {
+                FileIconType::Folder => rsx! { Icon { icon: LdFolder, width: 16, height: 16 } },
+                FileIconType::FolderOpen => rsx! { Icon { icon: LdFolderOpen, width: 16, height: 16 } },
+                FileIconType::File => rsx! { Icon { icon: LdFile, width: 16, height: 16 } },
+                FileIconType::FileText => rsx! { Icon { icon: LdFileText, width: 16, height: 16 } },
+                FileIconType::FileCode => rsx! { Icon { icon: LdFileCode, width: 16, height: 16 } },
+                FileIconType::FileConfig => rsx! { Icon { icon: LdFileJson, width: 16, height: 16 } },
+                FileIconType::FileStyle => rsx! { Icon { icon: LdPalette, width: 16, height: 16 } },
+                FileIconType::FileHtml => rsx! { Icon { icon: LdGlobe, width: 16, height: 16 } },
+                FileIconType::FileImage => rsx! { Icon { icon: LdImage, width: 16, height: 16 } },
+                FileIconType::FileRust => rsx! { Icon { icon: LdSettings, width: 16, height: 16 } },
+            }
+        }
     }
 }
 
@@ -166,15 +194,15 @@ fn FileTreeItem(
         }
     };
 
-    // Determine which icon and class to use
-    let (icon_svg, icon_class): (&str, &str) = if is_dir {
+    // Determine which icon type and class to use
+    let (icon_type, icon_class): (FileIconType, &str) = if is_dir {
         if node.is_expanded {
-            (ICON_FOLDER_OPEN, "file-tree-icon folder-open")
+            (FileIconType::FolderOpen, "file-tree-icon folder-open")
         } else {
-            (ICON_FOLDER_CLOSED, "file-tree-icon folder")
+            (FileIconType::Folder, "file-tree-icon folder")
         }
     } else {
-        (get_file_icon(&node.name), get_file_icon_class(&node.name))
+        (get_file_icon_type(&node.name), get_file_icon_class(&node.name))
     };
 
     // Build the full class string for files (add base class)
@@ -182,17 +210,6 @@ fn FileTreeItem(
         icon_class.to_string()
     } else {
         format!("file-tree-icon {}", icon_class)
-    };
-
-    // Determine chevron
-    let chevron_svg = if is_dir {
-        if node.is_expanded {
-            ICON_CHEVRON_DOWN
-        } else {
-            ICON_CHEVRON_RIGHT
-        }
-    } else {
-        "" // No chevron for files
     };
 
     rsx! {
@@ -204,13 +221,19 @@ fn FileTreeItem(
             // Chevron for directories (or spacer for files)
             div {
                 class: if is_dir { "file-tree-chevron has-children" } else { "file-tree-chevron" },
-                dangerous_inner_html: chevron_svg,
+                if is_dir {
+                    if node.is_expanded {
+                        Icon { icon: LdChevronDown, width: 16, height: 16 }
+                    } else {
+                        Icon { icon: LdChevronRight, width: 16, height: 16 }
+                    }
+                }
             }
 
             // Icon
-            div {
-                class: "{full_icon_class}",
-                dangerous_inner_html: icon_svg,
+            FileIcon {
+                icon_type: icon_type,
+                class: full_icon_class,
             }
 
             // Name
