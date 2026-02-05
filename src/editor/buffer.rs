@@ -512,17 +512,21 @@ impl Buffer {
 
     // Set cursor position directly (for mouse click)
     pub fn set_cursor_position(&mut self, line: usize, col: usize) {
-        let line = line.min(self.rope.len_lines().saturating_sub(1));
-        let col = col.min(self.line_len(line));
+        let max_line = self.rope.len_lines().saturating_sub(1);
+        let line = line.min(max_line);
+        let max_col = self.line_len(line);
+        let col = col.min(max_col);
         self.cursor.position = crate::editor::cursor::Position::new(line, col);
         self.cursor.clear_selection();
     }
 
     // Start selection at current position (for mouse drag start)
     pub fn begin_selection(&mut self, line: usize, col: usize) {
-        let line = line.min(self.rope.len_lines().saturating_sub(1));
-        let col = col.min(self.line_len(line));
-        self.cursor.position = crate::editor::cursor::Position::new(line, col);
+        let max_line = self.rope.len_lines().saturating_sub(1);
+        let clamped_line = line.min(max_line);
+        let max_col = self.line_len(clamped_line);
+        let clamped_col = col.min(max_col);
+        self.cursor.position = crate::editor::cursor::Position::new(clamped_line, clamped_col);
         self.cursor.anchor = Some(self.cursor.position);
     }
 

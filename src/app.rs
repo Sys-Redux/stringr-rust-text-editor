@@ -229,10 +229,8 @@ pub fn app() -> Element {
         }
     };
 
-    // Get cursor position for rendering
-    let cursor_line_idx = buffer.read().cursor_line();
-    let cursor_col_idx = buffer.read().cursor_col();
-    let selection = buffer.read().selection_positions();
+    // Get cursor position for rendering - read directly from buffer for reactivity
+    // Note: We'll read these inside the rsx! to ensure proper subscription
 
     rsx! {
         document::Link { rel: "stylesheet", href: asset!("/assets/tailwind.css") }
@@ -286,10 +284,6 @@ pub fn app() -> Element {
                     onkeydown,
                     onfocus,
                     onblur,
-                    onmousedown,
-                    onmousemove,
-                    onmouseup,
-                    ondoubleclick,
 
                     if is_empty() {
                         // Line number gutter (just line 1 for empty)
@@ -300,9 +294,13 @@ pub fn app() -> Element {
                                 "1"
                             }
                         }
-                        // Editor content
+                        // Editor content - mouse events attached here for accurate coordinates
                         div {
                             class: "editor-content",
+                            onmousedown,
+                            onmousemove,
+                            onmouseup,
+                            ondoubleclick,
                             div {
                                 class: "editor-line active",
                                 span {
@@ -318,32 +316,43 @@ pub fn app() -> Element {
                         // Line number gutter
                         div {
                             class: "line-number-gutter",
-                            for (line_idx, _line) in buffer.read().lines().enumerate() {
+                            for line_idx in 0..buffer.read().line_count() {
                                 div {
                                     key: "ln-{line_idx}",
-                                    class: if line_idx == cursor_line_idx { "line-number active" } else { "line-number" },
+                                    class: if line_idx == buffer.read().cursor_line() { "line-number active" } else { "line-number" },
                                     "{line_idx + 1}"
                                 }
                             }
                         }
-                        // Editor content
+                        // Editor content - mouse events attached here for accurate coordinates
                         div {
                             class: "editor-content",
+                            onmousedown,
+                            onmousemove,
+                            onmouseup,
+                            ondoubleclick,
                             for (line_idx, line) in buffer.read().lines().enumerate() {
-                                div {
-                                    key: "{line_idx}",
-                                    class: if line_idx == cursor_line_idx { "editor-line active" } else { "editor-line" },
+                                {
+                                    let cur_line = buffer.read().cursor_line();
+                                    let cur_col = buffer.read().cursor_col();
+                                    let sel = buffer.read().selection_positions();
+                                    rsx! {
+                                        div {
+                                            key: "{line_idx}",
+                                            class: if line_idx == cur_line { "editor-line active" } else { "editor-line" },
 
-                                    // Render line w/ cursor, selection, and search highlights
-                                    {render_line(
-                                        line_idx,
-                                        &line,
-                                        cursor_line_idx,
-                                        cursor_col_idx,
-                                        selection,
-                                        is_focused(),
-                                        search_state.read().matches_on_line(line_idx),
-                                    )}
+                                            // Render line w/ cursor, selection, and search highlights
+                                            {render_line(
+                                                line_idx,
+                                                &line,
+                                                cur_line,
+                                                cur_col,
+                                                sel,
+                                                is_focused(),
+                                                search_state.read().matches_on_line(line_idx),
+                                            )}
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -426,6 +435,10 @@ fn render_line(
     let line_chars: Vec<char> = line.chars().collect();
     let line_len = line_chars.len();
 
+    // Debug: log what render_line receives
+    if line_idx == cursor_line {
+    }
+
     // Check if this line has selection
     let (sel_start_line, sel_start_col, sel_end_line, sel_end_col) =
         selection.unwrap_or((usize::MAX, 0, 0, 0));
@@ -500,12 +513,13 @@ fn render_line(
         // Find where to insert cursor
         let mut char_pos = 0;
         let mut result_spans: Vec<Element> = vec![];
+        let mut cursor_inserted = false;
 
         for (style, text) in spans {
             let span_len = text.chars().count();
             let span_end = char_pos + span_len;
 
-            if cursor_col >= char_pos && cursor_col < span_end {
+            if !cursor_inserted && cursor_col >= char_pos && cursor_col < span_end {
                 // Cursor is within this span - split it
                 let offset = cursor_col - char_pos;
                 let before: String = text.chars().take(offset).collect();
@@ -527,6 +541,7 @@ fn render_line(
                 }
 
                 result_spans.push(rsx! { span { class: "{cursor_class}" } });
+                cursor_inserted = true;
 
                 if !after.is_empty() {
                     if class.is_empty() {
@@ -554,8 +569,8 @@ fn render_line(
             char_pos = span_end;
         }
 
-        // If cursor is at end of line
-        if cursor_col >= line_len {
+        // If cursor is at end of line (and wasn't inserted yet)
+        if !cursor_inserted && cursor_col >= line_len {
             result_spans.push(rsx! { span { class: "{cursor_class}" } });
         }
 
