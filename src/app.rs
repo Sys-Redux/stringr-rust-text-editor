@@ -127,6 +127,22 @@ pub fn app() -> Element {
                     search_state.write().close();
                 }
             }
+            ShortcutAction::FormatBold => {
+                evt.prevent_default();
+                buffer.write().format_selection(crate::editor::FormatStyle::Bold);
+            }
+            ShortcutAction::FormatItalic => {
+                evt.prevent_default();
+                buffer.write().format_selection(crate::editor::FormatStyle::Italic);
+            }
+            ShortcutAction::FormatUnderline => {
+                evt.prevent_default();
+                buffer.write().format_selection(crate::editor::FormatStyle::Underline);
+            }
+            ShortcutAction::FormatCode => {
+                evt.prevent_default();
+                buffer.write().format_selection(crate::editor::FormatStyle::Code);
+            }
 
             ShortcutAction::None => {
                 // Not a shortcut - handle as regular input

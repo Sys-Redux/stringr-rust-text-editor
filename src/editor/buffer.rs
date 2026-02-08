@@ -617,6 +617,42 @@ impl Buffer {
 
         self.cursor.position = crate::editor::cursor::Position::new(line, pos);
     }
+
+    // Apply formatting to selected text
+    pub fn format_selection(&mut self, style: crate::editor::formatting::FormatStyle) {
+        use crate::editor::formatting;
+
+        // Get selected text
+        if let Some(selected) = self.selected_text() {
+            // Save to history
+            self.save_to_history_other();
+
+            // Get selection range
+            let (start, end) = self.cursor.selection_range().unwrap();
+            let start_idx = self.position_to_char_idx(&start);
+            let end_idx = self.position_to_char_idx(&end);
+
+            // Toggle formatting
+            let formatted = formatting::toggle_format(&selected, style);
+
+            // Replace selected text with formatted text
+            self.rope.remove(start_idx..end_idx);
+            self.rope.insert(start_idx, &formatted);
+
+            // Update cursor position
+            self.cursor.position = start;
+            self.cursor.position.col += formatted.len();
+            self.cursor.clear_selection();
+            self.dirty = true;
+        }
+    }
+
+    // Check if cursor is w/in formatted text
+    pub fn get_format_info(&self) -> crate::editor::formatting::FormatInfo {
+        // Get current line text
+        let line_text: String = self.rope.line(self.cursor.position.line).chars().collect();
+        crate::editor::formatting::check_formatting(&line_text, self.cursor.position.col)
+    }
 }
 
 impl Default for Buffer {

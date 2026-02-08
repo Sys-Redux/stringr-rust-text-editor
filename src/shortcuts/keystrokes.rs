@@ -27,6 +27,12 @@ pub enum ShortcutAction {
     Replace,
     CloseSearch,
 
+    // Formatting operations
+    FormatBold,
+    FormatItalic,
+    FormatUnderline,
+    FormatCode,
+
     // No action matched
     None,
 }
@@ -86,6 +92,11 @@ pub fn parse_shortcut(key: &Key, modifiers: &Modifiers) -> ShortcutAction {
                 "f" => ShortcutAction::Find,
                 "h" => ShortcutAction::Replace,
                 "g" => ShortcutAction::FindNext,
+                // Formatting shortcuts
+                "b" => ShortcutAction::FormatBold,
+                "i" => ShortcutAction::FormatItalic,
+                "u" => ShortcutAction::FormatUnderline,
+                "`" => ShortcutAction::FormatCode,
                 _ => ShortcutAction::None,
             };
         }
